@@ -1,0 +1,2287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UnitFlow — Every conversion. One simple place.</title>
+<meta name="description" content="UnitFlow is a free, fast all-in-one unit converter. Convert length, weight, temperature, area, volume, speed, time, digital storage and data transfer speed instantly in your browser." />
+<meta name="theme-color" content="#4f46e5" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Cpath d='M9 13h12l-3-3M23 19H11l3 3' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc',
+            400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca',
+            800: '#3730a3', 900: '#312e81'
+          }
+        },
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif']
+        }
+      }
+    }
+  };
+</script>
+<style>
+  [hidden] { display: none !important; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+  .uf-skip {
+    position: absolute; left: -9999px; top: 0; z-index: 100;
+    padding: 0.75rem 1rem; background: #4f46e5; color: #fff;
+    border-radius: 0 0 0.5rem 0; font-weight: 600;
+  }
+  .uf-skip:focus { left: 0; outline: 2px solid #fff; outline-offset: -4px; }
+  /* Hide native search clear button inconsistencies but keep behaviour */
+  input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
+  
+/* Smooth page and tab transitions */
+@keyframes uf-view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes uf-view-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.uf-view-enter {
+  animation: uf-view-enter 280ms ease-out both;
+}
+
+.uf-view-exit {
+  animation: uf-view-exit 180ms ease-in both;
+}
+
+/* Confirmation modal */
+@keyframes uf-modal-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes uf-modal-backdrop-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes uf-modal-panel-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes uf-modal-panel-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(8px) scale(0.97); }
+}
+
+.uf-modal-backdrop {
+  animation: uf-modal-backdrop-in 200ms ease-out both;
+}
+.uf-modal-backdrop.uf-modal-closing {
+  animation: uf-modal-backdrop-out 160ms ease-in both;
+}
+.uf-modal-panel {
+  animation: uf-modal-panel-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.uf-modal-backdrop.uf-modal-closing .uf-modal-panel {
+  animation: uf-modal-panel-out 160ms ease-in both;
+}
+
+</style>
+</head>
+<body class="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
+  <a href="#main" class="uf-skip">Skip to content</a>
+
+  <header id="site-header" class="sticky top-0 z-40"></header>
+
+  <main id="main" class="mx-auto w-full max-w-6xl scroll-mt-20 px-4 pb-16 sm:px-6 lg:px-8">
+    <div id="view-home"></div>
+    <div id="view-tool" hidden></div>
+    <div id="view-favorites" hidden></div>
+    <div id="view-recents" hidden></div>
+  </main>
+
+  <footer id="site-footer" class="border-t border-slate-200 bg-white"></footer>
+
+  <div id="toast-region" class="pointer-events-none fixed inset-x-0 bottom-5 z-50 flex flex-col items-center gap-2 px-4" aria-live="polite" aria-atomic="true"></div>
+
+  <div id="modal-root"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ============================================================
+     ICONS
+     ============================================================ */
+  const ICONS = {
+    ruler: '<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/>',
+    weight: '<circle cx="12" cy="5" r="3"/><path d="M6.5 8a2 2 0 0 0-1.905 1.46L2.1 18.5A2 2 0 0 0 4 21h16a2 2 0 0 0 1.925-2.54L19.4 9.5A2 2 0 0 0 17.5 8Z"/>',
+    thermometer: '<path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>',
+    grid: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/>',
+    beaker: '<path d="M4.5 3h15"/><path d="M6 3v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V3"/><path d="M6 14h12"/>',
+    gauge: '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    hardDrive: '<line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" x2="6.01" y1="16" y2="16"/><line x1="10" x2="10.01" y1="16" y2="16"/>',
+    network: '<rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/>',
+    swap: '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>',
+    copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+    reset: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+    arrowRight: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    menu: '<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    sparkles: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
+    zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>'
+  };
+
+  function icon(name, cls) {
+    const classes = cls || 'h-5 w-5';
+    return '<svg class="' + classes + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + (ICONS[name] || '') + '</svg>';
+  }
+
+  function starIcon(filled, cls) {
+    const classes = cls || 'h-4 w-4';
+    return '<svg class="' + classes + '" viewBox="0 0 24 24" fill="' + (filled ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + ICONS.star + '</svg>';
+  }
+
+  /* ============================================================
+     SHARED CLASS STRINGS
+     ============================================================ */
+  const UI = {
+    label: 'block text-xs font-semibold uppercase tracking-wider text-slate-500',
+    input: 'block w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-base text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30',
+    inputSm: 'block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30',
+    btnPrimary: 'inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+    btnSecondary: 'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2',
+    chip: 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2',
+    chipOn: 'border-brand-600 bg-brand-600 text-white shadow-sm hover:bg-brand-700',
+    chipOff: 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'
+  };
+
+  const PILL_BASE = 'inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2';
+  const PILL_ON = 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100';
+  const PILL_OFF = 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50';
+  const ICON_FAV_BASE = 'absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full border bg-white/95 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2';
+  const ICON_FAV_ON = 'border-amber-200 text-amber-500 hover:bg-amber-50';
+  const ICON_FAV_OFF = 'border-slate-200 text-slate-400 hover:border-amber-200 hover:text-amber-500';
+  const VIEW_ALL_LINK = 'shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-brand-200 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2';
+
+  /* ============================================================
+     CONSTANTS
+     ============================================================ */
+  const STORAGE_KEYS = { recents: 'unitflow:recents:v1', favorites: 'unitflow:favorites:v1' };
+  const MAX_RECENTS = 50;
+  const HOME_RECENTS_LIMIT = 4;
+  const CATEGORIES = ['All Tools', 'Everyday', 'Science', 'Measurements', 'Digital'];
+  const NUMERIC_RE = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+
+  /* ============================================================
+     UTILITIES
+     ============================================================ */
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
+
+  function formatNumber(n) {
+    if (typeof n !== 'number' || !Number.isFinite(n)) return '—';
+    if (n === 0) return '0';
+    const abs = Math.abs(n);
+    if (abs >= 1e15 || abs < 1e-6) {
+      let s = n.toExponential(8);
+      s = s.replace(/(\.\d*?)0+e/, '$1e').replace(/\.e/, 'e');
+      return s;
+    }
+    const rounded = Number(n.toPrecision(12));
+    try {
+      return new Intl.NumberFormat('en-US', { maximumSignificantDigits: 12 }).format(rounded);
+    } catch (err) {
+      return String(rounded);
+    }
+  }
+
+  function formatPlain(n) {
+    return formatNumber(n).replace(/,/g, '');
+  }
+
+  function timeAgo(ts) {
+    const diff = Date.now() - ts;
+    const seconds = Math.round(diff / 1000);
+    if (seconds < 45) return 'just now';
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return minutes + ' min ago';
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return hours + ' hr ago';
+    const days = Math.round(hours / 24);
+    if (days < 7) return days + (days === 1 ? ' day ago' : ' days ago');
+    try {
+      return new Date(ts).toLocaleDateString();
+    } catch (err) {
+      return 'earlier';
+    }
+  }
+
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (err) { /* fall through to legacy path */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '-1000px';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function showToast(message) {
+    const region = document.getElementById('toast-region');
+    if (!region) return;
+    const el = document.createElement('div');
+    el.className = 'pointer-events-auto flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-lg';
+    el.innerHTML = '<span class="text-emerald-600">' + icon('check', 'h-4 w-4') + '</span><span class="truncate"></span>';
+    const textEl = el.querySelector('span:last-child');
+    if (textEl) textEl.textContent = message;
+    region.appendChild(el);
+    setTimeout(function () {
+      el.style.transition = 'opacity 200ms ease, transform 200ms ease';
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(6px)';
+      setTimeout(function () { el.remove(); }, 220);
+    }, 2000);
+  }
+
+  /* ============================================================
+     CONFIRMATION MODAL
+     ============================================================ */
+  let activeModal = null;
+
+  function closeModal() {
+    if (!activeModal) return;
+    const modal = activeModal;
+    activeModal = null;
+
+    modal.backdrop.classList.add('uf-modal-closing');
+    modal.backdrop.setAttribute('aria-hidden', 'true');
+
+    window.setTimeout(function () {
+      if (modal.backdrop.parentNode) {
+        modal.backdrop.parentNode.removeChild(modal.backdrop);
+      }
+      document.body.style.overflow = '';
+      if (modal.previousFocus && typeof modal.previousFocus.focus === 'function') {
+        modal.previousFocus.focus({ preventScroll: true });
+      }
+    }, 170);
+  }
+
+  function confirmModal(opts) {
+    const options = opts || {};
+    const root = document.getElementById('modal-root');
+    if (!root) return;
+
+    // Close any existing modal first
+    if (activeModal) {
+      if (activeModal.backdrop.parentNode) {
+        activeModal.backdrop.parentNode.removeChild(activeModal.backdrop);
+      }
+      activeModal = null;
+    }
+
+    const title = options.title || 'Are you sure?';
+    const message = options.message || '';
+    const confirmLabel = options.confirmLabel || 'Confirm';
+    const cancelLabel = options.cancelLabel || 'Cancel';
+    const danger = options.danger !== false;
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'uf-modal-backdrop fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+    backdrop.setAttribute('aria-labelledby', 'modal-title');
+    backdrop.setAttribute('aria-describedby', 'modal-desc');
+
+    backdrop.innerHTML =
+      '<div class="uf-modal-panel w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl shadow-slate-900/20 sm:p-6">' +
+        '<div class="flex items-start gap-3">' +
+          '<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full ' +
+            (danger ? 'bg-rose-50 text-rose-600' : 'bg-brand-50 text-brand-600') + '">' +
+            icon(danger ? 'reset' : 'check', 'h-5 w-5') +
+          '</span>' +
+          '<div class="min-w-0">' +
+            '<h2 id="modal-title" class="text-base font-semibold text-slate-900">' + escapeHtml(title) + '</h2>' +
+            '<p id="modal-desc" class="mt-1 text-sm leading-relaxed text-slate-600">' + escapeHtml(message) + '</p>' +
+          '</div>' +
+        '</div>' +
+        '<div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">' +
+          '<button type="button" data-modal-cancel class="' + UI.btnSecondary + '">' + escapeHtml(cancelLabel) + '</button>' +
+          '<button type="button" data-modal-confirm class="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ' +
+            (danger
+              ? 'bg-rose-600 hover:bg-rose-700 focus-visible:ring-rose-500'
+              : 'bg-brand-600 hover:bg-brand-700 focus-visible:ring-brand-500') + '">' +
+            escapeHtml(confirmLabel) +
+          '</button>' +
+        '</div>' +
+      '</div>';
+
+    root.appendChild(backdrop);
+    document.body.style.overflow = 'hidden';
+
+    activeModal = {
+      backdrop: backdrop,
+      previousFocus: document.activeElement
+    };
+
+    const cancelBtn = backdrop.querySelector('[data-modal-cancel]');
+    const confirmBtn = backdrop.querySelector('[data-modal-confirm]');
+
+    function onCancel() {
+      closeModal();
+      if (typeof options.onCancel === 'function') options.onCancel();
+    }
+
+    function onConfirm() {
+      closeModal();
+      if (typeof options.onConfirm === 'function') options.onConfirm();
+    }
+
+    if (cancelBtn) cancelBtn.addEventListener('click', onCancel);
+    if (confirmBtn) confirmBtn.addEventListener('click', onConfirm);
+
+    // Click outside the panel closes the modal
+    backdrop.addEventListener('click', function (event) {
+      if (event.target === backdrop) onCancel();
+    });
+
+    // Focus trap-ish: focus the confirm button
+    if (confirmBtn) confirmBtn.focus({ preventScroll: true });
+
+    // Escape closes (handled globally below, but also bind here for safety)
+    const keyHandler = function (event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCancel();
+      }
+    };
+    backdrop.addEventListener('keydown', keyHandler);
+  }
+
+
+  /* ============================================================
+     STORAGE
+     ============================================================ */
+  function safeRead(key, fallback) {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) return fallback;
+      return JSON.parse(raw);
+    } catch (err) {
+      return fallback;
+    }
+  }
+
+  function safeWrite(key, value) {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function getRecents() {
+    const raw = safeRead(STORAGE_KEYS.recents, []);
+    if (!Array.isArray(raw)) return [];
+    return raw.filter(function (record) {
+      if (!record || typeof record !== 'object') return false;
+      if (typeof record.id !== 'string') return false;
+      if (typeof record.toolId !== 'string' || !TOOLS[record.toolId]) return false;
+      const tool = TOOLS[record.toolId];
+      if (!tool.units.some(function (u) { return u.id === record.from; })) return false;
+      if (!tool.units.some(function (u) { return u.id === record.to; })) return false;
+      if (!Number.isFinite(record.input) || !Number.isFinite(record.output)) return false;
+      if (!Number.isFinite(record.ts)) return false;
+      record.signature = record.signature || (record.toolId + '|' + record.from + '|' + record.to + '|' + record.input);
+      return true;
+    }).slice(0, MAX_RECENTS);
+  }
+
+  function saveRecents(list) {
+    safeWrite(STORAGE_KEYS.recents, list);
+  }
+
+  function getFavorites() {
+    const raw = safeRead(STORAGE_KEYS.favorites, []);
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set();
+    const result = [];
+    raw.forEach(function (id) {
+      if (typeof id === 'string' && TOOLS[id] && !seen.has(id)) {
+        seen.add(id);
+        result.push(id);
+      }
+    });
+    return result;
+  }
+
+  function saveFavorites(list) {
+    safeWrite(STORAGE_KEYS.favorites, list);
+  }
+
+  /* ============================================================
+     CONVERSION ENGINE
+     ============================================================ */
+  function tempToKelvin(value, unitId) {
+    if (unitId === 'c') return value + 273.15;
+    if (unitId === 'f') return (value - 32) * 5 / 9 + 273.15;
+    return value;
+  }
+
+  function tempFromKelvin(kelvin, unitId) {
+    if (unitId === 'c') return kelvin - 273.15;
+    if (unitId === 'f') return (kelvin - 273.15) * 9 / 5 + 32;
+    return kelvin;
+  }
+
+  function computeConversion(tool, raw, fromId, toId) {
+    const valueStr = String(raw == null ? '' : raw).trim();
+    if (valueStr === '') return { ok: false, empty: true };
+    if (!NUMERIC_RE.test(valueStr)) {
+      return { ok: false, message: 'Enter a valid number, e.g. 12.5 or -3.' };
+    }
+    const num = Number(valueStr);
+    if (!Number.isFinite(num)) {
+      return { ok: false, message: 'That number is outside the supported range.' };
+    }
+    const fromUnit = tool.units.find(function (u) { return u.id === fromId; });
+    const toUnit = tool.units.find(function (u) { return u.id === toId; });
+    if (!fromUnit || !toUnit) {
+      return { ok: false, message: 'Please choose valid units.' };
+    }
+
+    let result;
+    if (tool.kind === 'temperature') {
+      const kelvin = tempToKelvin(num, fromId);
+      if (kelvin < -1e-9) {
+        return { ok: false, message: 'Temperature cannot be below absolute zero (0 K).' };
+      }
+      result = tempFromKelvin(kelvin, toId);
+    } else {
+      const base = num * fromUnit.factor;
+      result = base / toUnit.factor;
+    }
+
+    if (!Number.isFinite(result)) {
+      return { ok: false, message: 'The result is too large to display.' };
+    }
+    return { ok: true, value: result, input: num };
+  }
+
+  /* ============================================================
+     TOOL DEFINITIONS
+     ============================================================ */
+  const TOOLS = {
+    length: {
+      id: 'length',
+      name: 'Length Converter',
+      shortName: 'Length',
+      description: 'Meters, kilometers, miles, feet and more — with exact meter-based factors.',
+      categories: ['Everyday', 'Measurements'],
+      icon: 'ruler',
+      kind: 'factor',
+      units: [
+        { id: 'km', name: 'Kilometer', symbol: 'km', factor: 1000 },
+        { id: 'm', name: 'Meter', symbol: 'm', factor: 1 },
+        { id: 'cm', name: 'Centimeter', symbol: 'cm', factor: 0.01 },
+        { id: 'mm', name: 'Millimeter', symbol: 'mm', factor: 0.001 },
+        { id: 'um', name: 'Micrometer', symbol: 'µm', factor: 1e-6 },
+        { id: 'nm', name: 'Nanometer', symbol: 'nm', factor: 1e-9 },
+        { id: 'mi', name: 'Mile', symbol: 'mi', factor: 1609.344 },
+        { id: 'yd', name: 'Yard', symbol: 'yd', factor: 0.9144 },
+        { id: 'ft', name: 'Foot', symbol: 'ft', factor: 0.3048 },
+        { id: 'in', name: 'Inch', symbol: 'in', factor: 0.0254 }
+      ],
+      defaultFrom: 'km',
+      defaultTo: 'mi',
+      defaultValue: '1',
+      sample: { value: 1, from: 'km', to: 'mi' },
+      presets: [['km', 'mi'], ['mi', 'km'], ['m', 'ft'], ['ft', 'm'], ['cm', 'in'], ['in', 'cm'], ['km', 'm'], ['m', 'cm']],
+      related: ['area', 'volume', 'speed'],
+      notes: [
+        'Length conversions use the meter as the base unit. Metric units step by powers of ten, while imperial units are defined by exact factors: 1 inch = 0.0254 m, 1 foot = 0.3048 m, 1 yard = 0.9144 m and 1 mile = 1609.344 m.',
+        'Micrometers (µm) and nanometers (nm) are useful for precision work; 1 µm = 0.001 mm and 1 nm = 0.001 µm.'
+      ]
+    },
+    weight: {
+      id: 'weight',
+      name: 'Weight Converter',
+      shortName: 'Weight',
+      description: 'Metric tonnes to ounces, using the kilogram as the base unit.',
+      categories: ['Everyday', 'Measurements'],
+      icon: 'weight',
+      kind: 'factor',
+      units: [
+        { id: 't', name: 'Metric tonne', symbol: 't', factor: 1000 },
+        { id: 'kg', name: 'Kilogram', symbol: 'kg', factor: 1 },
+        { id: 'g', name: 'Gram', symbol: 'g', factor: 0.001 },
+        { id: 'mg', name: 'Milligram', symbol: 'mg', factor: 1e-6 },
+        { id: 'ug', name: 'Microgram', symbol: 'µg', factor: 1e-9 },
+        { id: 'lb', name: 'Pound', symbol: 'lb', factor: 0.45359237 },
+        { id: 'oz', name: 'Ounce', symbol: 'oz', factor: 0.028349523125 }
+      ],
+      defaultFrom: 'kg',
+      defaultTo: 'lb',
+      defaultValue: '1',
+      sample: { value: 1, from: 'kg', to: 'lb' },
+      presets: [['kg', 'lb'], ['lb', 'kg'], ['g', 'oz'], ['oz', 'g'], ['t', 'kg'], ['kg', 'g']],
+      related: ['volume', 'temperature', 'time'],
+      notes: [
+        'Mass conversions use the kilogram as the base unit. The pound is defined as exactly 0.45359237 kg, and there are 16 ounces in a pound.',
+        'Metric units are related by powers of ten: 1 t = 1000 kg, 1 kg = 1000 g, 1 g = 1000 mg and 1 mg = 1000 µg.'
+      ]
+    },
+    temperature: {
+      id: 'temperature',
+      name: 'Temperature Converter',
+      shortName: 'Temperature',
+      description: 'Celsius, Fahrenheit and Kelvin with correct formulas and absolute-zero checks.',
+      categories: ['Everyday', 'Science'],
+      icon: 'thermometer',
+      kind: 'temperature',
+      units: [
+        { id: 'c', name: 'Celsius', symbol: '°C' },
+        { id: 'f', name: 'Fahrenheit', symbol: '°F' },
+        { id: 'k', name: 'Kelvin', symbol: 'K' }
+      ],
+      defaultFrom: 'c',
+      defaultTo: 'f',
+      defaultValue: '1',
+      sample: { value: 0, from: 'c', to: 'f' },
+      presets: [['c', 'f'], ['f', 'c'], ['c', 'k'], ['k', 'c'], ['f', 'k'], ['k', 'f']],
+      related: ['speed', 'time', 'weight'],
+      notes: [
+        'Temperature does not convert with a simple multiplier. The formulas used here are: °F = (°C × 9/5) + 32, °C = (°F − 32) × 5/9 and K = °C + 273.15.',
+        'Absolute zero is 0 K = −273.15 °C = −459.67 °F. Values below absolute zero are rejected with a helpful message.'
+      ]
+    },
+    area: {
+      id: 'area',
+      name: 'Area Converter',
+      shortName: 'Area',
+      description: 'Square meters, hectares, acres, square feet and square miles.',
+      categories: ['Measurements'],
+      icon: 'grid',
+      kind: 'factor',
+      units: [
+        { id: 'km2', name: 'Square kilometer', symbol: 'km²', factor: 1e6 },
+        { id: 'ha', name: 'Hectare', symbol: 'ha', factor: 10000 },
+        { id: 'ac', name: 'Acre', symbol: 'ac', factor: 4046.8564224 },
+        { id: 'm2', name: 'Square meter', symbol: 'm²', factor: 1 },
+        { id: 'cm2', name: 'Square centimeter', symbol: 'cm²', factor: 0.0001 },
+        { id: 'ft2', name: 'Square foot', symbol: 'ft²', factor: 0.09290304 },
+        { id: 'yd2', name: 'Square yard', symbol: 'yd²', factor: 0.83612736 },
+        { id: 'mi2', name: 'Square mile', symbol: 'mi²', factor: 2589988.110336 }
+      ],
+      defaultFrom: 'm2',
+      defaultTo: 'ft2',
+      defaultValue: '1',
+      sample: { value: 1, from: 'm2', to: 'ft2' },
+      presets: [['m2', 'ft2'], ['ft2', 'm2'], ['ha', 'ac'], ['ac', 'ha'], ['km2', 'mi2'], ['mi2', 'km2']],
+      related: ['length', 'volume', 'weight'],
+      notes: [
+        'Area conversions use the square meter as the base unit. One hectare is 10,000 m² and one acre is exactly 4,046.8564224 m².',
+        'Square feet and square yards are common in US real estate; 1 ft² = 0.09290304 m² and 1 yd² = 0.83612736 m².'
+      ]
+    },
+    volume: {
+      id: 'volume',
+      name: 'Volume Converter',
+      shortName: 'Volume',
+      description: 'Liters, milliliters, cubic meters and US customary liquid units.',
+      categories: ['Measurements', 'Science'],
+      icon: 'beaker',
+      kind: 'factor',
+      units: [
+        { id: 'm3', name: 'Cubic meter', symbol: 'm³', factor: 1 },
+        { id: 'l', name: 'Liter', symbol: 'L', factor: 0.001 },
+        { id: 'ml', name: 'Milliliter', symbol: 'mL', factor: 1e-6 },
+        { id: 'cm3', name: 'Cubic centimeter', symbol: 'cm³', factor: 1e-6 },
+        { id: 'gal', name: 'US gallon', symbol: 'US gal', factor: 0.003785411784 },
+        { id: 'qt', name: 'US quart', symbol: 'US qt', factor: 0.000946352946 },
+        { id: 'pt', name: 'US pint', symbol: 'US pt', factor: 0.000473176473 },
+        { id: 'cup', name: 'US cup', symbol: 'US cup', factor: 0.0002365882365 },
+        { id: 'floz', name: 'US fluid ounce', symbol: 'US fl oz', factor: 0.0000295735295625 }
+      ],
+      defaultFrom: 'l',
+      defaultTo: 'gal',
+      defaultValue: '1',
+      sample: { value: 1, from: 'l', to: 'gal' },
+      presets: [['l', 'gal'], ['gal', 'l'], ['m3', 'l'], ['l', 'ml'], ['qt', 'l'], ['floz', 'ml']],
+      related: ['area', 'length', 'weight'],
+      notes: [
+        'Volume uses the cubic meter as the base unit; 1 m³ = 1000 L and 1 L = 1000 mL = 1000 cm³.',
+        'US customary units are used here and differ from imperial units: 1 US gallon = 3.785411784 L, 1 US quart = 1/4 gallon, 1 US pint = 1/2 quart and 1 US cup = 8 US fl oz.'
+      ]
+    },
+    speed: {
+      id: 'speed',
+      name: 'Speed Converter',
+      shortName: 'Speed',
+      description: 'Meters per second, km/h, mph, ft/s and knots.',
+      categories: ['Everyday', 'Science'],
+      icon: 'gauge',
+      kind: 'factor',
+      units: [
+        { id: 'ms', name: 'Meters per second', symbol: 'm/s', factor: 1 },
+        { id: 'kmh', name: 'Kilometers per hour', symbol: 'km/h', factor: 0.2777777777777778 },
+        { id: 'mph', name: 'Miles per hour', symbol: 'mph', factor: 0.44704 },
+        { id: 'fts', name: 'Feet per second', symbol: 'ft/s', factor: 0.3048 },
+        { id: 'kn', name: 'Knots', symbol: 'kn', factor: 0.5144444444444445 }
+      ],
+      defaultFrom: 'kmh',
+      defaultTo: 'mph',
+      defaultValue: '1',
+      sample: { value: 1, from: 'kmh', to: 'mph' },
+      presets: [['kmh', 'mph'], ['mph', 'kmh'], ['ms', 'kmh'], ['kmh', 'ms'], ['kn', 'kmh'], ['mph', 'fts']],
+      related: ['length', 'time', 'temperature'],
+      notes: [
+        'Speed conversions use meters per second as the base unit. 1 km/h = 0.277777… m/s and 1 mph = 0.44704 m/s exactly.',
+        'One knot is one nautical mile per hour, which is 0.514444… m/s.'
+      ]
+    },
+    time: {
+      id: 'time',
+      name: 'Time Converter',
+      shortName: 'Time',
+      description: 'Nanoseconds to weeks, based on the second.',
+      categories: ['Everyday', 'Science'],
+      icon: 'clock',
+      kind: 'factor',
+      units: [
+        { id: 'ns', name: 'Nanosecond', symbol: 'ns', factor: 1e-9 },
+        { id: 'us', name: 'Microsecond', symbol: 'µs', factor: 1e-6 },
+        { id: 'ms', name: 'Millisecond', symbol: 'ms', factor: 0.001 },
+        { id: 's', name: 'Second', symbol: 's', factor: 1 },
+        { id: 'min', name: 'Minute', symbol: 'min', factor: 60 },
+        { id: 'h', name: 'Hour', symbol: 'h', factor: 3600 },
+        { id: 'd', name: 'Day', symbol: 'd', factor: 86400 },
+        { id: 'wk', name: 'Week', symbol: 'wk', factor: 604800 }
+      ],
+      defaultFrom: 'h',
+      defaultTo: 'min',
+      defaultValue: '1',
+      sample: { value: 1, from: 'h', to: 'min' },
+      presets: [['h', 'min'], ['min', 'h'], ['d', 'h'], ['h', 's'], ['wk', 'd'], ['ms', 's']],
+      related: ['speed', 'length', 'temperature'],
+      notes: [
+        'Time conversions use the second as the base unit. 1 min = 60 s, 1 h = 3600 s, 1 d = 86,400 s and 1 wk = 604,800 s.',
+        'Nanoseconds, microseconds and milliseconds are common in computing and science; each step is a factor of 1000.'
+      ]
+    },
+    digital: {
+      id: 'digital',
+      name: 'Digital Storage Converter',
+      shortName: 'Digital storage',
+      description: 'Decimal (KB, MB, GB) and binary (KiB, MiB, GiB) storage units, clearly separated.',
+      categories: ['Digital'],
+      icon: 'hardDrive',
+      kind: 'factor',
+      units: [
+        { id: 'bit', name: 'Bit', symbol: 'bit', factor: 1 },
+        { id: 'byte', name: 'Byte', symbol: 'B', factor: 8 },
+        { id: 'kb', name: 'Kilobyte (decimal)', symbol: 'KB', factor: 8000 },
+        { id: 'mb', name: 'Megabyte (decimal)', symbol: 'MB', factor: 8e6 },
+        { id: 'gb', name: 'Gigabyte (decimal)', symbol: 'GB', factor: 8e9 },
+        { id: 'tb', name: 'Terabyte (decimal)', symbol: 'TB', factor: 8e12 },
+        { id: 'kib', name: 'Kibibyte (binary)', symbol: 'KiB', factor: 8192 },
+        { id: 'mib', name: 'Mebibyte (binary)', symbol: 'MiB', factor: 8388608 },
+        { id: 'gib', name: 'Gibibyte (binary)', symbol: 'GiB', factor: 8589934592 },
+        { id: 'tib', name: 'Tebibyte (binary)', symbol: 'TiB', factor: 8796093022208 }
+      ],
+      defaultFrom: 'gb',
+      defaultTo: 'mb',
+      defaultValue: '1',
+      sample: { value: 1, from: 'gb', to: 'mb' },
+      presets: [['gb', 'mb'], ['mb', 'gb'], ['gb', 'gib'], ['gib', 'gb'], ['tb', 'gb'], ['mb', 'kb']],
+      related: ['data', 'time', 'length'],
+      notes: [
+        'Decimal units use powers of 1000: 1 KB = 1000 B, 1 MB = 1000 KB, 1 GB = 1000 MB and 1 TB = 1000 GB.',
+        'Binary units use powers of 1024: 1 KiB = 1024 B, 1 MiB = 1024 KiB, 1 GiB = 1024 MiB and 1 TiB = 1024 GiB. KB and KiB are not interchangeable.',
+        'One byte is always 8 bits, so 1 B = 8 bit.'
+      ]
+    },
+    data: {
+      id: 'data',
+      name: 'Data Transfer Speed Converter',
+      shortName: 'Data transfer',
+      description: 'Network rates in bits and bytes per second, with decimal prefixes.',
+      categories: ['Digital'],
+      icon: 'network',
+      kind: 'factor',
+      units: [
+        { id: 'bps', name: 'Bits per second', symbol: 'bit/s', factor: 1 },
+        { id: 'kbps', name: 'Kilobits per second', symbol: 'kbit/s', factor: 1000 },
+        { id: 'mbps', name: 'Megabits per second', symbol: 'Mbit/s', factor: 1e6 },
+        { id: 'gbps', name: 'Gigabits per second', symbol: 'Gbit/s', factor: 1e9 },
+        { id: 'Bps', name: 'Bytes per second', symbol: 'B/s', factor: 8 },
+        { id: 'KBps', name: 'Kilobytes per second', symbol: 'KB/s', factor: 8000 },
+        { id: 'MBps', name: 'Megabytes per second', symbol: 'MB/s', factor: 8e6 },
+        { id: 'GBps', name: 'Gigabytes per second', symbol: 'GB/s', factor: 8e9 }
+      ],
+      defaultFrom: 'mbps',
+      defaultTo: 'MBps',
+      defaultValue: '1',
+      sample: { value: 1, from: 'mbps', to: 'MBps' },
+      presets: [['mbps', 'MBps'], ['MBps', 'mbps'], ['gbps', 'mbps'], ['kbps', 'mbps'], ['MBps', 'KBps'], ['bps', 'Bps']],
+      related: ['digital', 'time', 'speed'],
+      notes: [
+        'Data transfer speeds use decimal prefixes: 1 kbit/s = 1000 bit/s, 1 Mbit/s = 1000 kbit/s and 1 Gbit/s = 1000 Mbit/s.',
+        'Bits and bytes are different: 1 B/s = 8 bit/s. A 100 Mbit/s connection is about 12.5 MB/s.'
+      ]
+    }
+  };
+
+  const POPULAR = [
+    { toolId: 'length', from: 'km', to: 'mi', value: 1, label: 'Kilometers to Miles' },
+    { toolId: 'weight', from: 'kg', to: 'lb', value: 1, label: 'Kilograms to Pounds' },
+    { toolId: 'temperature', from: 'c', to: 'f', value: 1, label: 'Celsius to Fahrenheit' },
+    { toolId: 'digital', from: 'gb', to: 'mb', value: 1, label: 'GB to MB' },
+    { toolId: 'time', from: 'h', to: 'min', value: 1, label: 'Hours to Minutes' },
+    { toolId: 'length', from: 'm', to: 'ft', value: 1, label: 'Meters to Feet' },
+    { toolId: 'speed', from: 'kmh', to: 'mph', value: 1, label: 'km/h to mph' },
+    { toolId: 'area', from: 'ha', to: 'ac', value: 1, label: 'Hectares to Acres' },
+    { toolId: 'data', from: 'mbps', to: 'MBps', value: 1, label: 'Mbit/s to MB/s' }
+  ];
+
+  /* ============================================================
+     DOM REFERENCES & APP STATE
+     ============================================================ */
+  const viewHome = document.getElementById('view-home');
+  const viewTool = document.getElementById('view-tool');
+  const viewFavorites = document.getElementById('view-favorites');
+  const viewRecents = document.getElementById('view-recents');
+
+  const toolStates = {};
+  const quickState = { toolId: 'length', from: 'km', to: 'mi', value: '1' };
+
+  let currentRoute = { name: 'home', params: new URLSearchParams() };
+  let currentCopy = null;
+  let pendingScroll = null;
+  let recentTimer = null;
+  let pendingRecent = null;
+  let firstRender = true;
+
+  /* ============================================================
+     SMALL HELPERS
+     ============================================================ */
+  function defaultState(tool) {
+    return { from: tool.defaultFrom, to: tool.defaultTo, value: String(tool.defaultValue == null ? '1' : tool.defaultValue) };
+  }
+
+  function unitSymbol(tool, id) {
+    const unit = tool.units.find(function (u) { return u.id === id; });
+    return unit ? unit.symbol : '';
+  }
+
+  function sampleConversion(tool) {
+    const sample = tool.sample;
+    if (!sample) return '';
+    const result = computeConversion(tool, sample.value, sample.from, sample.to);
+    if (!result.ok) return '';
+    const fromUnit = tool.units.find(function (u) { return u.id === sample.from; });
+    const toUnit = tool.units.find(function (u) { return u.id === sample.to; });
+    if (!fromUnit || !toUnit) return '';
+    return formatNumber(sample.value) + ' ' + fromUnit.symbol + ' = ' + formatNumber(result.value) + ' ' + toUnit.symbol;
+  }
+
+  function searchIndex(tool) {
+    const parts = [tool.name, tool.shortName, tool.description, tool.categories.join(' ')];
+    tool.units.forEach(function (u) { parts.push(u.name, u.symbol); });
+    return parts.join(' ').toLowerCase();
+  }
+
+  function resolveToolState(tool, params) {
+    let state = toolStates[tool.id];
+    if (!state) state = defaultState(tool);
+    if (params) {
+      const from = params.get('from');
+      const to = params.get('to');
+      const value = params.get('v');
+      if (from && tool.units.some(function (u) { return u.id === from; })) state.from = from;
+      if (to && tool.units.some(function (u) { return u.id === to; })) state.to = to;
+      if (value != null) {
+        const trimmed = value.trim();
+        if (trimmed && NUMERIC_RE.test(trimmed) && Number.isFinite(Number(trimmed))) {
+          state.value = trimmed;
+        }
+      }
+    }
+    toolStates[tool.id] = state;
+    return state;
+  }
+
+  /* ============================================================
+     RECENT CONVERSIONS
+     ============================================================ */
+  function addRecent(record) {
+    const list = getRecents();
+    const signature = record.toolId + '|' + record.from + '|' + record.to + '|' + record.input;
+    if (list.length && list[0].signature === signature) return;
+
+    const item = {
+      id: 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      toolId: record.toolId,
+      from: record.from,
+      to: record.to,
+      input: record.input,
+      output: record.output,
+      ts: Date.now(),
+      signature: signature
+    };
+    const next = [item].concat(list.filter(function (x) { return x.signature !== signature; })).slice(0, MAX_RECENTS);
+    saveRecents(next);
+    if (currentRoute.name === 'home') refreshRecentsUI();
+    if (currentRoute.name === 'recents') refreshRecentsPage();
+  }
+
+  function scheduleRecentSave(record) {
+    pendingRecent = record;
+    if (recentTimer) clearTimeout(recentTimer);
+    recentTimer = setTimeout(function () {
+      recentTimer = null;
+      if (pendingRecent) {
+        addRecent(pendingRecent);
+        pendingRecent = null;
+      }
+    }, 900);
+  }
+
+  function removeRecent(id) {
+    const next = getRecents().filter(function (r) { return r.id !== id; });
+    saveRecents(next);
+
+    if (currentRoute.name === 'recents') {
+      refreshRecentsPage();
+    } else if (currentRoute.name === 'home') {
+      refreshRecentsUI();
+    }
+    showToast('Conversion removed');
+  }
+
+  function clearRecents() {
+    saveRecents([]);
+    if (currentRoute.name === 'recents') {
+      refreshRecentsPage();
+    } else if (currentRoute.name === 'home') {
+      refreshRecentsUI();
+    }
+    showToast('Recent conversions cleared');
+  }
+
+  /* ============================================================
+     FAVORITES
+     ============================================================ */
+  function favButtonHTML(tool, variant) {
+    const on = getFavorites().indexOf(tool.id) !== -1;
+    const actionLabel = (on ? 'Remove ' : 'Add ') + tool.name + (on ? ' from' : ' to') + ' favorites';
+    if (variant === 'pill') {
+      return '<button type="button" data-fav-id="' + escapeHtml(tool.id) + '" data-fav-style="pill" aria-pressed="' + on + '" aria-label="' + escapeHtml(actionLabel) + '" class="' + PILL_BASE + ' ' + (on ? PILL_ON : PILL_OFF) + '">' +
+        starIcon(on, 'h-4 w-4') + '<span>' + (on ? 'Saved' : 'Save') + '</span></button>';
+    }
+    return '<button type="button" data-fav-id="' + escapeHtml(tool.id) + '" aria-pressed="' + on + '" aria-label="' + escapeHtml(actionLabel) + '" class="' + ICON_FAV_BASE + ' ' + (on ? ICON_FAV_ON : ICON_FAV_OFF) + '">' +
+      starIcon(on, 'h-4 w-4') + '</button>';
+  }
+
+  function updateFavButton(btn, on) {
+    const id = btn.getAttribute('data-fav-id');
+    const tool = TOOLS[id];
+    const name = tool ? tool.name : 'converter';
+    btn.setAttribute('aria-pressed', String(on));
+    btn.setAttribute('aria-label', (on ? 'Remove ' : 'Add ') + name + (on ? ' from' : ' to') + ' favorites');
+
+    if (btn.getAttribute('data-fav-style') === 'pill') {
+      btn.className = PILL_BASE + ' ' + (on ? PILL_ON : PILL_OFF);
+      btn.innerHTML = starIcon(on, 'h-4 w-4') + '<span>' + (on ? 'Saved' : 'Save') + '</span>';
+    } else {
+      btn.className = ICON_FAV_BASE + ' ' + (on ? ICON_FAV_ON : ICON_FAV_OFF);
+      btn.innerHTML = starIcon(on, 'h-4 w-4');
+    }
+  }
+
+  function applyFavoriteStates() {
+    const favorites = getFavorites();
+    document.querySelectorAll('[data-fav-id]').forEach(function (btn) {
+      const id = btn.getAttribute('data-fav-id');
+      updateFavButton(btn, favorites.indexOf(id) !== -1);
+    });
+  }
+
+  function toggleFavorite(toolId) {
+    if (!TOOLS[toolId]) return;
+    const favorites = getFavorites();
+    const index = favorites.indexOf(toolId);
+    if (index === -1) {
+      favorites.unshift(toolId);
+      showToast('Added to favorites');
+    } else {
+      favorites.splice(index, 1);
+      showToast('Removed from favorites');
+    }
+    saveFavorites(favorites);
+    applyFavoriteStates();
+
+    if (currentRoute.name === 'favorites') {
+      renderFavoritesView();
+    } else if (currentRoute.name === 'home') {
+      refreshHomeFavorites();
+    }
+  }
+
+  /* ============================================================
+     HEADER & FOOTER
+     ============================================================ */
+  function navLinkCls(active, mobile) {
+    return (mobile ? 'w-full text-left ' : '') +
+      'rounded-lg px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ' +
+      (active ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900');
+  }
+
+function renderHeader(route) {
+  const header = document.getElementById('site-header');
+  if (!header) return;
+
+  const isHome = route.name === 'home';
+  const isFavorites = route.name === 'favorites';
+  const isRecents = route.name === 'recents';
+
+  header.innerHTML =
+    '<div class="border-b border-slate-200/70 bg-white/85 backdrop-blur">' +
+
+      // Header container
+      '<div class="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">' +
+
+        // Logo
+        '<a href="#/" class="group flex items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2">' +
+          '<span class="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm transition group-hover:bg-brand-700">' +
+            icon('swap', 'h-5 w-5') +
+          '</span>' +
+          '<span class="text-lg font-semibold tracking-tight text-slate-900">UnitFlow</span>' +
+        '</a>' +
+
+        // Desktop navigation
+        '<nav class="hidden items-center gap-1 md:flex" aria-label="Primary">' +
+          '<a href="#/" class="' + navLinkCls(isHome) + '"' +
+            (isHome ? ' aria-current="page"' : '') +
+          '>Home</a>' +
+
+          '<button type="button" data-scroll="tools" class="' +
+            navLinkCls(false) +
+          '">All tools</button>' +
+
+          '<a href="#/recents" class="' + navLinkCls(isRecents) + '"' +
+            (isRecents ? ' aria-current="page"' : '') +
+          '>Recents</a>' +
+
+          '<a href="#/favorites" class="' + navLinkCls(isFavorites) + '"' +
+            (isFavorites ? ' aria-current="page"' : '') +
+          '>Favorites</a>' +
+        '</nav>' +
+
+        // Mobile menu toggle
+        '<button type="button" id="menu-toggle" ' +
+          'aria-expanded="false" ' +
+          'aria-controls="mobile-menu" ' +
+          'aria-label="Open navigation menu" ' +
+          'class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 md:hidden">' +
+          '<span class="sr-only">Toggle navigation menu</span>' +
+          icon('menu', 'h-5 w-5') +
+        '</button>' +
+
+      '</div>' +
+
+      // Mobile navigation
+      '<div id="mobile-menu" ' +
+        'aria-hidden="true" ' +
+        'inert ' +
+        'class="max-h-0 overflow-hidden -translate-y-2 border-t border-slate-200 bg-white opacity-0 transition-all duration-300 ease-in-out md:hidden">' +
+
+        '<nav class="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-3 sm:px-6" aria-label="Mobile">' +
+
+          '<a href="#/" class="' + navLinkCls(isHome, true) + '"' +
+            (isHome ? ' aria-current="page"' : '') +
+          '>Home</a>' +
+
+          '<button type="button" data-scroll="tools" class="' +
+            navLinkCls(false, true) +
+          '">All tools</button>' +
+
+          '<a href="#/recents" class="' + navLinkCls(isRecents, true) + '"' +
+            (isRecents ? ' aria-current="page"' : '') +
+          '>Recents</a>' +
+
+          '<a href="#/favorites" class="' + navLinkCls(isFavorites, true) + '"' +
+            (isFavorites ? ' aria-current="page"' : '') +
+          '>Favorites</a>' +
+
+        '</nav>' +
+      '</div>' +
+
+    '</div>';
+}
+
+  function renderFooter() {
+    const footer = document.getElementById('site-footer');
+    if (!footer) return;
+    footer.innerHTML =
+      '<div class="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-4 py-8 sm:flex-row sm:items-center sm:px-6 lg:px-8">' +
+        '<div class="flex items-center gap-2 text-sm text-slate-500">' +
+          '<span class="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-600 text-white">' + icon('swap', 'h-4 w-4') + '</span>' +
+          '<span><span class="font-semibold text-slate-700">UnitFlow</span> — every conversion, one simple place.</span>' +
+        '</div>' +
+        '<p class="text-xs text-slate-400">© ' + new Date().getFullYear() + ' UnitFlow. Developed By ~ Shankar Prasad Pyke</p>' +
+      '</div>';
+  }
+
+  /* ============================================================
+     SHARED VIEW PIECES
+     ============================================================ */
+
+  function showView(name) {
+    const views = {
+      home: viewHome,
+      tool: viewTool,
+      favorites: viewFavorites,
+      recents: viewRecents
+    };
+
+    Object.keys(views).forEach(function (key) {
+      const el = views[key];
+
+      if (key === name) {
+        el.hidden = false;
+        el.classList.remove('uf-view-exit');
+        el.classList.remove('uf-view-enter');
+
+        // Restart the entrance animation
+        void el.offsetWidth;
+
+        el.classList.add('uf-view-enter');
+      } else if (!el.hidden) {
+        // Animate the outgoing page
+        el.classList.remove('uf-view-enter');
+        el.classList.add('uf-view-exit');
+
+        window.setTimeout(function () {
+          if (el.classList.contains('uf-view-exit')) {
+            el.hidden = true;
+            el.innerHTML = '';
+            el.classList.remove('uf-view-exit');
+          }
+        }, 180);
+      }
+    });
+  }
+
+  function toolCardHTML(tool, activeCat) {
+    const hidden = activeCat && activeCat !== 'All Tools' && tool.categories.indexOf(activeCat) === -1;
+    const sample = sampleConversion(tool);
+    return '<div class="group relative h-full" data-categories="' + escapeHtml(tool.categories.join(',')) + '" data-search="' + escapeHtml(searchIndex(tool)) + '"' + (hidden ? ' hidden' : '') + '>' +
+      '<a href="#/tool/' + tool.id + '" class="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-brand-300 hover:shadow-lg hover:shadow-brand-900/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2">' +
+        '<div class="flex items-start gap-3 pr-10">' +
+          '<span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-sm">' + icon(tool.icon, 'h-5 w-5') + '</span>' +
+          '<div class="min-w-0">' +
+            '<h3 class="truncate text-base font-semibold text-slate-900">' + escapeHtml(tool.name) + '</h3>' +
+            '<p class="mt-0.5 truncate text-xs font-medium text-slate-500">' + tool.units.length + ' units · ' + escapeHtml(tool.categories[0]) + '</p>' +
+          '</div>' +
+        '</div>' +
+        '<p class="mt-3 line-clamp-2 text-sm leading-relaxed text-slate-600">' + escapeHtml(tool.description) + '</p>' +
+        '<div class="mt-auto pt-4">' +
+          '<div class="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2">' +
+            '<span class="truncate text-xs font-medium text-slate-600">' + escapeHtml(sample) + '</span>' +
+            '<span class="shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-brand-600">' + icon('arrowRight', 'h-4 w-4') + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</a>' +
+      favButtonHTML(tool, 'icon') +
+    '</div>';
+  }
+
+  function emptyStateHTML(opts) {
+    const action = opts.action
+      ? '<a href="' + escapeHtml(opts.action.href) + '"' + (opts.action.attrs ? ' ' + opts.action.attrs : '') + ' class="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-brand-200 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2">' + escapeHtml(opts.action.label) + '</a>'
+      : '';
+    return '<div class="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-6 text-center">' +
+      '<span class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">' + icon(opts.iconName, 'h-5 w-5') + '</span>' +
+      '<p class="mt-3 text-sm font-semibold text-slate-800">' + escapeHtml(opts.title) + '</p>' +
+      '<p class="mx-auto mt-1 max-w-xs text-sm text-slate-500">' + escapeHtml(opts.text) + '</p>' +
+      action +
+    '</div>';
+  }
+
+  function recentListHTML(recents, limit) {
+    const max = limit || 6;
+    if (!recents.length) {
+      return emptyStateHTML({
+        iconName: 'clock',
+        title: 'No conversions yet',
+        text: 'Conversions you make will appear here so you can reopen them in one tap.',
+        action: { label: 'Try the length converter', href: '#/tool/length' }
+      });
+    }
+
+    const items = recents.slice(0, max).map(function (record) {
+      const tool = TOOLS[record.toolId];
+      if (!tool) return '';
+      const fromUnit = tool.units.find(function (u) { return u.id === record.from; });
+      const toUnit = tool.units.find(function (u) { return u.id === record.to; });
+      if (!fromUnit || !toUnit) return '';
+      const href = '#/tool/' + tool.id + '?from=' + encodeURIComponent(record.from) + '&to=' + encodeURIComponent(record.to) + '&v=' + encodeURIComponent(String(record.input));
+      return '<li class="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2.5 pr-1.5 transition hover:border-brand-200">' +
+        '<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-brand-100 bg-brand-50 text-brand-600">' + icon(tool.icon, 'h-4 w-4') + '</span>' +
+        '<a href="' + href + '" class="min-w-0 flex-1 rounded-lg px-1 py-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">' +
+          '<span class="block truncate text-sm font-medium text-slate-800">' + escapeHtml(formatNumber(record.input)) + ' ' + escapeHtml(fromUnit.symbol) + ' → ' + escapeHtml(formatNumber(record.output)) + ' ' + escapeHtml(toUnit.symbol) + '</span>' +
+          '<span class="mt-0.5 block truncate text-xs text-slate-500">' + escapeHtml(tool.shortName) + ' · ' + escapeHtml(timeAgo(record.ts)) + '</span>' +
+        '</a>' +
+        '<button type="button" data-remove-recent="' + escapeHtml(record.id) + '" aria-label="Remove this conversion from history" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">' +
+          icon('x', 'h-4 w-4') +
+        '</button>' +
+      '</li>';
+    }).join('');
+
+    const more = recents.length > max
+      ? '<p class="mt-2 text-xs text-slate-400">Showing the ' + max + ' most recent of ' + recents.length + '.</p>'
+      : '';
+
+    return '<ul class="space-y-2">' + items + '</ul>' + more;
+  }
+
+  function favoritesBodyHTML(favs, limit) {
+    const max = limit || 4;
+    if (!favs.length) {
+      return emptyStateHTML({
+        iconName: 'star',
+        title: 'No favorites yet',
+        text: 'Tap the star on any converter to keep it one click away.',
+        action: { label: 'Browse converters', href: '#tools', attrs: 'data-scroll="tools"' }
+      });
+    }
+    const items = favs.slice(0, max).map(function (tool) {
+      return '<li>' +
+        '<a href="#/tool/' + tool.id + '" class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 transition hover:border-brand-200 hover:bg-brand-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2">' +
+          '<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-brand-100 bg-brand-50 text-brand-600">' + icon(tool.icon, 'h-4 w-4') + '</span>' +
+          '<span class="min-w-0 flex-1">' +
+            '<span class="block truncate text-sm font-medium text-slate-800">' + escapeHtml(tool.name) + '</span>' +
+            '<span class="block text-xs text-slate-500">' + escapeHtml(tool.categories[0]) + '</span>' +
+          '</span>' +
+          icon('arrowRight', 'h-4 w-4 shrink-0 text-slate-400') +
+        '</a>' +
+      '</li>';
+    }).join('');
+    return '<ul class="space-y-2">' + items + '</ul>';
+  }
+
+  /* ============================================================
+     HOME VIEW — QUICK CONVERT CARD
+     ============================================================ */
+  function quickCardHTML() {
+    const toolOptions = Object.keys(TOOLS).map(function (id) {
+      const t = TOOLS[id];
+      return '<option value="' + escapeHtml(t.id) + '"' + (t.id === quickState.toolId ? ' selected' : '') + '>' + escapeHtml(t.name) + '</option>';
+    }).join('');
+
+    return '<div id="quick-card" class="hidden lg:block relative rounded-2xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-900/5 sm:p-6">' +
+      '<div class="flex items-center justify-between gap-3">' +
+        '<h2 class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Quick convert</h2>' +
+        '<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">' +
+          '<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Live' +
+        '</span>' +
+      '</div>' +
+
+      '<div class="mt-4">' +
+        '<label for="quick-tool" class="' + UI.label + '">Converter</label>' +
+        '<select id="quick-tool" class="' + UI.inputSm + ' mt-1.5">' + toolOptions + '</select>' +
+      '</div>' +
+
+      '<div class="mt-3 grid grid-cols-2 gap-2">' +
+        '<div>' +
+          '<label for="quick-from" class="' + UI.label + '">From</label>' +
+          '<select id="quick-from" class="' + UI.inputSm + ' mt-1.5"></select>' +
+        '</div>' +
+        '<div>' +
+          '<label for="quick-to" class="' + UI.label + '">To</label>' +
+          '<select id="quick-to" class="' + UI.inputSm + ' mt-1.5"></select>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="mt-3">' +
+        '<label for="quick-value" class="' + UI.label + '">Amount</label>' +
+        '<input id="quick-value" type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" spellcheck="false" value="' + escapeHtml(quickState.value) + '" class="' + UI.inputSm + ' mt-1.5" />' +
+      '</div>' +
+
+      '<div class="mt-4 rounded-xl border border-brand-100 bg-gradient-to-br from-brand-50 to-white p-4">' +
+        '<p class="text-[11px] font-semibold uppercase tracking-wider text-brand-700/70">Result</p>' +
+        '<p class="mt-1 flex flex-wrap items-baseline gap-x-2" aria-live="polite">' +
+          '<span id="quick-result" class="break-all text-2xl font-semibold tracking-tight text-slate-900">—</span>' +
+          '<span id="quick-unit" class="text-sm font-medium text-slate-500"></span>' +
+        '</p>' +
+        '<p id="quick-error" class="mt-1 text-xs font-medium text-rose-600" role="alert" hidden></p>' +
+      '</div>' +
+
+      '<a id="quick-open" href="#/tool/' + escapeHtml(quickState.toolId) + '" class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2">' +
+        'Open full converter' + icon('arrowRight', 'h-4 w-4') +
+      '</a>' +
+    '</div>';
+  }
+
+  function renderQuickUnits() {
+    const toolSel = document.getElementById('quick-tool');
+    const fromSel = document.getElementById('quick-from');
+    const toSel = document.getElementById('quick-to');
+    if (!toolSel || !fromSel || !toSel) return;
+
+    const tool = TOOLS[quickState.toolId] || TOOLS.length;
+    toolSel.value = tool.id;
+
+    const opts = tool.units.map(function (u) {
+      return '<option value="' + escapeHtml(u.id) + '">' + escapeHtml(u.name) + ' (' + escapeHtml(u.symbol) + ')</option>';
+    }).join('');
+
+    fromSel.innerHTML = opts;
+    toSel.innerHTML = opts;
+
+    fromSel.value = quickState.from;
+    toSel.value = quickState.to;
+
+    if (fromSel.value !== quickState.from) {
+      quickState.from = tool.defaultFrom;
+      fromSel.value = quickState.from;
+    }
+    if (toSel.value !== quickState.to) {
+      quickState.to = tool.defaultTo;
+      toSel.value = quickState.to;
+    }
+  }
+
+  function updateQuick() {
+    const tool = TOOLS[quickState.toolId];
+    const resultEl = document.getElementById('quick-result');
+    const unitEl = document.getElementById('quick-unit');
+    const errEl = document.getElementById('quick-error');
+    const openEl = document.getElementById('quick-open');
+    if (!tool || !resultEl || !unitEl || !errEl) return;
+
+    const fromUnit = tool.units.find(function (u) { return u.id === quickState.from; }) || tool.units[0];
+    const toUnit = tool.units.find(function (u) { return u.id === quickState.to; }) || tool.units[0];
+
+    const res = computeConversion(tool, quickState.value, fromUnit.id, toUnit.id);
+
+    if (res.ok) {
+      resultEl.textContent = formatNumber(res.value);
+      unitEl.textContent = toUnit.symbol;
+      errEl.textContent = '';
+      errEl.hidden = true;
+    } else {
+      resultEl.textContent = '—';
+      unitEl.textContent = '';
+      errEl.textContent = res.message || '';
+      errEl.hidden = !res.message;
+    }
+
+    if (openEl) {
+      const v = (quickState.value && NUMERIC_RE.test(String(quickState.value).trim())) ? String(quickState.value).trim() : '1';
+      openEl.setAttribute('href', '#/tool/' + tool.id +
+        '?from=' + encodeURIComponent(fromUnit.id) +
+        '&to=' + encodeURIComponent(toUnit.id) +
+        '&v=' + encodeURIComponent(v));
+    }
+  }
+
+  function bindQuickConvert() {
+    const card = document.getElementById('quick-card');
+    if (!card) return;
+
+    renderQuickUnits();
+    updateQuick();
+
+    card.addEventListener('change', function (event) {
+      const target = event.target;
+      if (target.id === 'quick-tool') {
+        const tool = TOOLS[target.value];
+        if (!tool) return;
+        quickState.toolId = tool.id;
+        quickState.from = tool.defaultFrom;
+        quickState.to = tool.defaultTo;
+        renderQuickUnits();
+        updateQuick();
+      } else if (target.id === 'quick-from') {
+        quickState.from = target.value;
+        updateQuick();
+      } else if (target.id === 'quick-to') {
+        quickState.to = target.value;
+        updateQuick();
+      }
+    });
+
+    card.addEventListener('input', function (event) {
+      if (event.target.id === 'quick-value') {
+        quickState.value = event.target.value;
+        updateQuick();
+      }
+    });
+  }
+
+  /* ============================================================
+     HOME VIEW
+     ============================================================ */
+  function renderHomeView(params) {
+    showView('home');
+
+    const catParam = params.get('cat');
+    const activeCat = CATEGORIES.indexOf(catParam) !== -1 ? catParam : 'All Tools';
+    const tools = Object.keys(TOOLS).map(function (id) { return TOOLS[id]; });
+    const totalUnits = tools.reduce(function (sum, tool) { return sum + tool.units.length; }, 0);
+    const recents = getRecents();
+    const favs = getFavorites().map(function (id) { return TOOLS[id]; }).filter(Boolean);
+
+    const cardsHTML = tools.map(function (tool) { return toolCardHTML(tool, activeCat); }).join('');
+
+    const chipsHTML = CATEGORIES.map(function (cat) {
+      const on = cat === activeCat;
+      return '<button type="button" data-cat="' + escapeHtml(cat) + '" aria-pressed="' + on + '" class="' + UI.chip + ' ' + (on ? UI.chipOn : UI.chipOff) + '">' + escapeHtml(cat) + '</button>';
+    }).join('');
+
+    const popularHTML = POPULAR.map(function (item) {
+      const tool = TOOLS[item.toolId];
+      if (!tool) return '';
+      const fromUnit = tool.units.find(function (u) { return u.id === item.from; });
+      const toUnit = tool.units.find(function (u) { return u.id === item.to; });
+      if (!fromUnit || !toUnit) return '';
+      const href = '#/tool/' + tool.id + '?from=' + encodeURIComponent(item.from) + '&to=' + encodeURIComponent(item.to) + '&v=' + encodeURIComponent(String(item.value));
+      return '<a href="' + href + '" class="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2">' +
+        '<span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">' + icon(tool.icon, 'h-4 w-4') + '</span>' +
+        '<span class="min-w-0 flex-1">' +
+          '<span class="block truncate text-sm font-semibold text-slate-800">' + escapeHtml(item.label) + '</span>' +
+          '<span class="mt-0.5 block truncate text-xs text-slate-500">' + escapeHtml(fromUnit.symbol) + ' → ' + escapeHtml(toUnit.symbol) + '</span>' +
+        '</span>' +
+        '<span class="shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-brand-600">' + icon('arrowRight', 'h-4 w-4') + '</span>' +
+      '</a>';
+    }).join('');
+
+    const statsHTML = [
+      { value: String(tools.length), label: 'Converters' },
+      { value: String(totalUnits), label: 'Units' },
+      { value: '100%', label: 'In-browser' },
+      { value: '0', label: 'Sign-ups' }
+    ].map(function (s) {
+      return '<div class="flex flex-col">' +
+        '<span class="text-lg font-semibold tracking-tight text-slate-900">' + escapeHtml(s.value) + '</span>' +
+        '<span class="text-xs font-medium text-slate-500">' + escapeHtml(s.label) + '</span>' +
+      '</div>';
+    }).join('');
+
+    viewHome.innerHTML =
+      /* ---------------- HERO ---------------- */
+      '<section class="relative pb-10 pt-4 sm:pt-6">' +
+        '<div class="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-brand-200/40 blur-3xl" aria-hidden="true"></div>' +
+        '<div class="pointer-events-none absolute -left-24 top-32 h-64 w-64 rounded-full bg-sky-200/40 blur-3xl" aria-hidden="true"></div>' +
+
+        '<div class="relative grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">' +
+          '<div>' +
+            '<h1 tabindex="-1" class="text-4xl font-semibold leading-[1.1] tracking-tight text-slate-900 focus:outline-none sm:text-5xl">' +
+              'Every conversion.<br />' +
+              '<span class="bg-gradient-to-r from-brand-600 via-brand-500 to-sky-500 bg-clip-text text-transparent">One simple place.</span>' +
+            '</h1>' +
+            '<p class="mt-5 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg">' +
+              'Convert length, weight, temperature, area, volume, speed, time, digital storage and data transfer instantly. ' +
+              'Nothing to install, nothing to sign up for, and nothing ever leaves your browser.' +
+            '</p>' +
+            '<div class="mt-6 flex flex-wrap items-center gap-3">' +
+              '<a href="#tools" data-scroll="tools" class="' + UI.btnPrimary + '">Browse converters' + icon('arrowRight', 'h-4 w-4') + '</a>' +
+              '<a href="#/tool/length" class="' + UI.btnSecondary + '">' + icon('sparkles', 'h-4 w-4') + 'Try length converter</a>' +
+            '</div>' +
+            '<div class="hidden lg:grid mt-8 max-w-md grid-cols-2 gap-4 border-t border-slate-200 pt-5 sm:grid-cols-4 sm:gap-2">' +
+              statsHTML +
+            '</div>' +
+          '</div>' +
+          '<div class="hidden lg:block">' + quickCardHTML() + '</div>' +
+        '</div>' +
+      '</section>' +
+
+      /* ---------------- TOOL GRID ---------------- */
+      '<section id="tools" class="scroll-mt-24">' +
+        '<div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">' +
+          '<div>' +
+            '<h2 class="text-xl font-semibold tracking-tight text-slate-900">All converters</h2>' +
+            '<p id="tools-count" class="mt-1 text-sm text-slate-500">' + tools.length + ' converters</p>' +
+          '</div>' +
+          '<div class="relative w-full sm:w-72">' +
+            '<span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">' + icon('search', 'h-4 w-4') + '</span>' +
+            '<input id="tool-search" type="search" placeholder="Search converters or units…" aria-label="Search converters" autocomplete="off" class="block w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30" />' +
+          '</div>' +
+        '</div>' +
+
+        '<div id="category-filters" class="mt-4 flex flex-wrap gap-2" role="group" aria-label="Filter converters by category">' + chipsHTML + '</div>' +
+
+        '<div id="tool-grid" class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">' + cardsHTML + '</div>' +
+
+        '<div id="tools-empty" hidden class="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white/60 p-8 text-center">' +
+          '<span class="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-400">' + icon('search', 'h-5 w-5') + '</span>' +
+          '<p class="mt-3 text-sm font-semibold text-slate-800">No converters found</p>' +
+          '<p class="mt-1 text-sm text-slate-500">Try a different search term or category.</p>' +
+          '<button type="button" id="clear-filters" class="mt-4 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-brand-200 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2">Clear filters</button>' +
+        '</div>' +
+      '</section>' +
+
+      /* ---------------- POPULAR ---------------- */
+      '<section class="mt-14" aria-labelledby="popular-heading">' +
+        '<div class="flex flex-wrap items-end justify-between gap-3">' +
+          '<div>' +
+            '<h2 id="popular-heading" class="text-xl font-semibold tracking-tight text-slate-900">Popular conversions</h2>' +
+            '<p class="mt-1 text-sm text-slate-500">Jump straight into a converter with the units already selected.</p>' +
+          '</div>' +
+        '</div>' +
+        '<div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">' + popularHTML + '</div>' +
+      '</section>' +
+
+      /* ---------------- RECENT + FAVORITES ---------------- */
+      '<div class="mt-14 grid gap-10 lg:grid-cols-2">' +
+        '<section aria-labelledby="recent-heading">' +
+          '<div class="flex items-start justify-between gap-3">' +
+            '<div>' +
+              '<h2 id="recent-heading" class="text-xl font-semibold tracking-tight text-slate-900">Recent conversions</h2>' +
+              '<p class="mt-1 text-sm text-slate-500">Saved in this browser only.</p>' +
+            '</div>' +
+            '<a href="#/recents" class="' + VIEW_ALL_LINK + '">View all</a>' +
+          '</div>' +
+          '<div id="recent-body" class="mt-4">' + recentListHTML(recents, HOME_RECENTS_LIMIT) + '</div>' +
+        '</section>' +
+
+        '<section aria-labelledby="fav-heading">' +
+          '<div class="flex items-start justify-between gap-3">' +
+            '<div>' +
+              '<h2 id="fav-heading" class="text-xl font-semibold tracking-tight text-slate-900">Favorite tools</h2>' +
+              '<p class="mt-1 text-sm text-slate-500">Your quick-access shortlist.</p>' +
+            '</div>' +
+            '<a href="#/favorites" class="' + VIEW_ALL_LINK + '">View all</a>' +
+          '</div>' +
+          '<div id="fav-body" class="mt-4">' + favoritesBodyHTML(favs, 4) + '</div>' +
+        '</section>' +
+      '</div>';
+
+    bindHomeEvents();
+    bindQuickConvert();
+    applyHomeFilters();
+  }
+
+  function applyHomeFilters() {
+    const grid = document.getElementById('tool-grid');
+    if (!grid) return;
+
+    const searchEl = document.getElementById('tool-search');
+    const q = (searchEl && searchEl.value ? searchEl.value : '').trim().toLowerCase();
+    const activeChip = document.querySelector('#category-filters [data-cat][aria-pressed="true"]');
+    const cat = activeChip ? activeChip.getAttribute('data-cat') : 'All Tools';
+
+    const cards = grid.querySelectorAll('[data-categories]');
+    let shown = 0;
+
+    cards.forEach(function (card) {
+      const cats = (card.getAttribute('data-categories') || '').split(',');
+      const hay = card.getAttribute('data-search') || '';
+      const catOk = cat === 'All Tools' || cats.indexOf(cat) !== -1;
+      const queryOk = !q || hay.indexOf(q) !== -1;
+      const ok = catOk && queryOk;
+      card.hidden = !ok;
+      if (ok) shown += 1;
+    });
+
+    const empty = document.getElementById('tools-empty');
+    if (empty) empty.hidden = shown > 0;
+
+    const count = document.getElementById('tools-count');
+    if (count) {
+      count.textContent = shown === cards.length
+        ? cards.length + ' converters'
+        : 'Showing ' + shown + ' of ' + cards.length;
+    }
+  }
+
+  function setActiveCategory(cat) {
+    const filters = document.getElementById('category-filters');
+    if (!filters) return;
+    filters.querySelectorAll('[data-cat]').forEach(function (btn) {
+      const on = btn.getAttribute('data-cat') === cat;
+      btn.className = UI.chip + ' ' + (on ? UI.chipOn : UI.chipOff);
+      btn.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  function bindHomeEvents() {
+    const filters = document.getElementById('category-filters');
+    if (filters) {
+      filters.addEventListener('click', function (event) {
+        const btn = event.target.closest('[data-cat]');
+        if (!btn) return;
+        setActiveCategory(btn.getAttribute('data-cat'));
+        history.replaceState(null, '', '#/?cat=' + encodeURIComponent(btn.getAttribute('data-cat')));
+        applyHomeFilters();
+      });
+    }
+
+    const searchEl = document.getElementById('tool-search');
+    if (searchEl) {
+      searchEl.addEventListener('input', applyHomeFilters);
+      searchEl.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+          searchEl.value = '';
+          applyHomeFilters();
+        }
+      });
+    }
+
+    const clearFilters = document.getElementById('clear-filters');
+    if (clearFilters) {
+      clearFilters.addEventListener('click', function () {
+        const el = document.getElementById('tool-search');
+        if (el) el.value = '';
+        setActiveCategory('All Tools');
+        history.replaceState(null, '', '#/');
+        applyHomeFilters();
+      });
+    }
+  }
+
+  function refreshRecentsUI() {
+    const body = document.getElementById('recent-body');
+    if (!body) return;
+    body.innerHTML = recentListHTML(getRecents(), HOME_RECENTS_LIMIT);
+  }
+
+  function refreshHomeFavorites() {
+    const body = document.getElementById('fav-body');
+    if (!body) return;
+    const favs = getFavorites().map(function (id) { return TOOLS[id]; }).filter(Boolean);
+    body.innerHTML = favoritesBodyHTML(favs, 4);
+  }
+
+  /* ============================================================
+     FAVORITES VIEW
+     ============================================================ */
+  function renderFavoritesView() {
+    showView('favorites');
+    const favs = getFavorites().map(function (id) { return TOOLS[id]; }).filter(Boolean);
+
+    viewFavorites.innerHTML =
+      '<div class="pt-6 sm:pt-8">' +
+        '<nav aria-label="Breadcrumb">' +
+          '<ol class="flex flex-wrap items-center gap-1.5 text-sm text-slate-500">' +
+            '<li><a href="#/" class="rounded transition hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">Home</a></li>' +
+            '<li aria-hidden="true" class="text-slate-300">/</li>' +
+            '<li aria-current="page" class="font-medium text-slate-700">Favorites</li>' +
+          '</ol>' +
+        '</nav>' +
+        '<div class="mt-5 flex flex-wrap items-end justify-between gap-4">' +
+          '<div>' +
+            '<h1 tabindex="-1" class="text-2xl font-semibold tracking-tight text-slate-900 focus:outline-none sm:text-3xl">Favorite tools</h1>' +
+            '<p class="mt-1 text-sm text-slate-600">Starred converters are saved in this browser.</p>' +
+          '</div>' +
+          (favs.length
+            ? '<button type="button" id="clear-favorites" class="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-3.5 py-2 text-sm font-semibold text-rose-600 shadow-sm transition hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2">Clear favorites</button>'
+            : '') +
+        '</div>' +
+        (favs.length
+          ? '<div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">' +
+              favs.map(function (tool) { return toolCardHTML(tool, 'All Tools'); }).join('') +
+            '</div>'
+          : '<div class="mt-6 max-w-lg">' +
+              emptyStateHTML({
+                iconName: 'star',
+                title: 'No favorites yet',
+                text: 'Tap the star on any converter and it will show up here.',
+                action: { label: 'Browse all converters', href: '#tools', attrs: 'data-scroll="tools"' }
+              }) +
+            '</div>') +
+      '</div>';
+
+    const clearBtn = document.getElementById('clear-favorites');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        confirmModal({
+          title: 'Clear all favorites?',
+          message: 'This will remove every starred converter from your favorites list. You can always add them back.',
+          confirmLabel: 'Clear favorites',
+          cancelLabel: 'Cancel',
+          danger: true,
+          onConfirm: function () {
+            saveFavorites([]);
+            applyFavoriteStates();
+            renderFavoritesView();
+            showToast('Favorites cleared');
+          }
+        });
+      });
+    }
+  }
+
+  /* ============================================================
+     RECENTS VIEW (all conversions)
+     ============================================================ */
+  function recentsPageMarkup(recents) {
+    return '<div class="pt-6 sm:pt-8">' +
+      '<nav aria-label="Breadcrumb">' +
+        '<ol class="flex flex-wrap items-center gap-1.5 text-sm text-slate-500">' +
+          '<li><a href="#/" class="rounded transition hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">Home</a></li>' +
+          '<li aria-hidden="true" class="text-slate-300">/</li>' +
+          '<li aria-current="page" class="font-medium text-slate-700">Recent conversions</li>' +
+        '</ol>' +
+      '</nav>' +
+      '<div class="mt-5 flex flex-wrap items-end justify-between gap-4">' +
+        '<div>' +
+          '<h1 tabindex="-1" class="text-2xl font-semibold tracking-tight text-slate-900 focus:outline-none sm:text-3xl">Recent conversions</h1>' +
+          '<p class="mt-1 text-sm text-slate-600">Your conversion history is saved in this browser only.</p>' +
+        '</div>' +
+        (recents.length
+          ? '<button type="button" id="clear-recents" class="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-3.5 py-2 text-sm font-semibold text-rose-600 shadow-sm transition hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2">Clear history</button>'
+          : '') +
+      '</div>' +
+      '<div class="mt-6 max-w-3xl">' + recentListHTML(recents, MAX_RECENTS) + '</div>' +
+    '</div>';
+  }
+
+  function bindRecentsPageEvents() {
+    const clearBtn = document.getElementById('clear-recents');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        confirmModal({
+          title: 'Clear conversion history?',
+          message: 'This will permanently remove all recent conversions saved in this browser. This action cannot be undone.',
+          confirmLabel: 'Clear history',
+          cancelLabel: 'Keep history',
+          danger: true,
+          onConfirm: function () {
+            clearRecents();
+          }
+        });
+      });
+    }
+  }
+
+  function renderRecentsView() {
+    showView('recents');
+    viewRecents.innerHTML = recentsPageMarkup(getRecents());
+    bindRecentsPageEvents();
+  }
+
+  function refreshRecentsPage() {
+    if (currentRoute.name !== 'recents') return;
+    // Re-render in place (no page transition) so removing one item feels instant.
+    viewRecents.innerHTML = recentsPageMarkup(getRecents());
+    bindRecentsPageEvents();
+  }
+
+  /* ============================================================
+     TOOL VIEW
+     ============================================================ */
+  function renderToolView(toolId, params) {
+    showView('tool');
+
+    const tool = TOOLS[toolId];
+    if (!tool) {
+      viewTool.innerHTML =
+        '<div class="pt-16 text-center">' +
+          '<p class="text-sm font-semibold text-brand-700">404</p>' +
+          '<h1 tabindex="-1" class="mt-2 text-2xl font-semibold tracking-tight text-slate-900 focus:outline-none">Converter not found</h1>' +
+          '<p class="mt-2 text-sm text-slate-600">The converter you are looking for does not exist.</p>' +
+          '<a href="#/" class="mt-6 inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2">Back to all converters</a>' +
+        '</div>';
+      return;
+    }
+
+    const state = resolveToolState(tool, params);
+
+    const fromOptions = tool.units.map(function (unit) {
+      return '<option value="' + escapeHtml(unit.id) + '"' + (unit.id === state.from ? ' selected' : '') + '>' + escapeHtml(unit.name) + ' (' + escapeHtml(unit.symbol) + ')</option>';
+    }).join('');
+
+    const toOptions = tool.units.map(function (unit) {
+      return '<option value="' + escapeHtml(unit.id) + '"' + (unit.id === state.to ? ' selected' : '') + '>' + escapeHtml(unit.name) + ' (' + escapeHtml(unit.symbol) + ')</option>';
+    }).join('');
+
+    const presetsHTML = tool.presets.map(function (pair) {
+      const fromUnit = tool.units.find(function (u) { return u.id === pair[0]; });
+      const toUnit = tool.units.find(function (u) { return u.id === pair[1]; });
+      if (!fromUnit || !toUnit) return '';
+      return '<button type="button" data-preset-from="' + escapeHtml(pair[0]) + '" data-preset-to="' + escapeHtml(pair[1]) + '" class="' + UI.chip + ' ' + UI.chipOff + '">' +
+        escapeHtml(fromUnit.symbol) + ' <span class="text-slate-400" aria-hidden="true">→</span> ' + escapeHtml(toUnit.symbol) +
+      '</button>';
+    }).join('');
+
+    const relatedHTML = tool.related.map(function (id) {
+      return TOOLS[id] ? toolCardHTML(TOOLS[id], 'All Tools') : '';
+    }).join('');
+
+    const notesHTML = tool.notes.map(function (note) {
+      return '<p>' + escapeHtml(note) + '</p>';
+    }).join('');
+
+    viewTool.innerHTML =
+      '<div class="pt-6 sm:pt-8">' +
+        '<nav aria-label="Breadcrumb">' +
+          '<ol class="flex flex-wrap items-center gap-1.5 text-sm text-slate-500">' +
+            '<li><a href="#/" class="rounded transition hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">Home</a></li>' +
+            '<li aria-hidden="true" class="text-slate-300">/</li>' +
+            '<li><a href="#/?cat=' + encodeURIComponent(tool.categories[0]) + '" class="rounded transition hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">' + escapeHtml(tool.categories[0]) + '</a></li>' +
+            '<li aria-hidden="true" class="text-slate-300">/</li>' +
+            '<li aria-current="page" class="font-medium text-slate-700">' + escapeHtml(tool.name) + '</li>' +
+          '</ol>' +
+        '</nav>' +
+
+        '<div class="mt-5 flex flex-wrap items-start justify-between gap-4">' +
+          '<div class="flex items-start gap-4">' +
+            '<span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-sm">' + icon(tool.icon, 'h-6 w-6') + '</span>' +
+            '<div>' +
+              '<h1 tabindex="-1" class="text-2xl font-semibold tracking-tight text-slate-900 focus:outline-none sm:text-3xl">' + escapeHtml(tool.name) + '</h1>' +
+              '<p class="mt-1 max-w-2xl text-sm leading-relaxed text-slate-600">' + escapeHtml(tool.description) + '</p>' +
+            '</div>' +
+          '</div>' +
+          favButtonHTML(tool, 'pill') +
+        '</div>' +
+
+        '<section id="calculator" class="mt-6 scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">' +
+          '<div>' +
+            '<h2 class="text-lg font-semibold text-slate-900">Convert</h2>' +
+            '<p class="mt-0.5 text-sm text-slate-500">Results update as you type.</p>' +
+          '</div>' +
+
+          '<div class="mt-5">' +
+            '<label for="input-value" class="' + UI.label + '">Amount</label>' +
+            '<div class="relative mt-1.5">' +
+              '<input id="input-value" type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" spellcheck="false" class="' + UI.input + ' pr-12 text-lg" aria-describedby="conversion-error" />' +
+              '<button type="button" id="sign-btn" aria-label="Toggle negative sign" class="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-base font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">±</button>' +
+            '</div>' +
+          '</div>' +
+
+          '<div class="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-end">' +
+            '<div>' +
+              '<label for="unit-from" class="' + UI.label + '">From</label>' +
+              '<select id="unit-from" class="' + UI.input + ' mt-1.5">' + fromOptions + '</select>' +
+            '</div>' +
+            '<div class="flex justify-center sm:pb-0.5">' +
+              '<button type="button" id="swap-btn" aria-label="Swap source and target units" class="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-transform duration-500 ease-in-out hover:scale-105 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2">' +
+                icon('swap', 'h-4 w-4') +
+              '</button>' +
+            '</div>' +
+            '<div>' +
+              '<label for="unit-to" class="' + UI.label + '">To</label>' +
+              '<select id="unit-to" class="' + UI.input + ' mt-1.5">' + toOptions + '</select>' +
+            '</div>' +
+          '</div>' +
+
+          '<div class="mt-5 rounded-2xl border border-brand-100 bg-brand-50/70 p-4 sm:p-5">' +
+            '<p class="text-xs font-semibold uppercase tracking-wider text-brand-700/80">Result</p>' +
+            '<div aria-live="polite">' +
+              '<p class="mt-1 flex flex-wrap items-baseline gap-x-2">' +
+                '<span id="result-number" class="break-all text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">—</span>' +
+                '<span id="result-unit" class="text-lg font-medium text-slate-500"></span>' +
+              '</p>' +
+              '<p id="result-equation" class="mt-1 break-words text-sm text-slate-600">Enter a value to convert.</p>' +
+            '</div>' +
+            '<p id="conversion-error" class="mt-2 text-sm font-medium text-rose-600" role="alert"></p>' +
+            '<div class="mt-4 flex flex-wrap gap-2">' +
+              '<button type="button" id="copy-btn" class="' + UI.btnPrimary + '">' + icon('copy', 'h-4 w-4') + '<span>Copy result</span></button>' +
+              '<button type="button" id="reset-btn" class="' + UI.btnSecondary + '">' + icon('reset', 'h-4 w-4') + '<span>Reset</span></button>' +
+            '</div>' +
+          '</div>' +
+        '</section>' +
+
+        '<section class="mt-8">' +
+          '<h2 class="text-lg font-semibold text-slate-900">Common conversions</h2>' +
+          '<p class="mt-1 text-sm text-slate-500">Load a frequently used pair of units.</p>' +
+          '<div class="mt-3 flex flex-wrap gap-2">' + presetsHTML + '</div>' +
+        '</section>' +
+
+        '<section class="mt-8">' +
+          '<h2 class="text-lg font-semibold text-slate-900">Conversion reference</h2>' +
+          '<p id="ref-caption" class="mt-1 text-sm text-slate-500"></p>' +
+          '<div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">' +
+            '<table class="min-w-full text-sm" aria-label="Conversion reference table">' +
+              '<thead class="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500">' +
+                '<tr>' +
+                  '<th scope="col" class="px-4 py-3 font-semibold">Unit</th>' +
+                  '<th scope="col" class="px-4 py-3 font-semibold">Symbol</th>' +
+                  '<th scope="col" class="px-4 py-3 font-semibold">Value</th>' +
+                '</tr>' +
+              '</thead>' +
+              '<tbody id="ref-tbody"></tbody>' +
+            '</table>' +
+          '</div>' +
+        '</section>' +
+
+        '<section class="mt-10">' +
+          '<h2 class="text-lg font-semibold text-slate-900">About these units</h2>' +
+          '<div class="mt-2 space-y-2 text-sm leading-relaxed text-slate-600">' + notesHTML + '</div>' +
+        '</section>' +
+
+        '<section class="mt-10">' +
+          '<div class="flex flex-wrap items-end justify-between gap-3">' +
+            '<h2 class="text-lg font-semibold text-slate-900">Related converters</h2>' +
+            '<a href="#/" data-scroll="tools" class="rounded text-sm font-medium text-brand-700 transition hover:text-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">All tools</a>' +
+          '</div>' +
+          '<div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">' + relatedHTML + '</div>' +
+        '</section>' +
+      '</div>';
+
+    bindToolEvents(tool, state);
+  }
+
+  function bindToolEvents(tool, state) {
+    const input = document.getElementById('input-value');
+    const fromSel = document.getElementById('unit-from');
+    const toSel = document.getElementById('unit-to');
+    const signBtn = document.getElementById('sign-btn');
+    const swapBtn = document.getElementById('swap-btn');
+    const copyBtn = document.getElementById('copy-btn');
+    const resetBtn = document.getElementById('reset-btn');
+
+    if (!input || !fromSel || !toSel || !signBtn || !swapBtn || !copyBtn || !resetBtn) return;
+
+    input.value = state.value;
+    fromSel.value = state.from;
+    toSel.value = state.to;
+
+    input.addEventListener('input', function () {
+      toolStates[tool.id].value = input.value;
+      updateCalculator(tool, { save: true });
+    });
+
+    fromSel.addEventListener('change', function () {
+      toolStates[tool.id].from = fromSel.value;
+      updateCalculator(tool, { save: true });
+    });
+
+    toSel.addEventListener('change', function () {
+      toolStates[tool.id].to = toSel.value;
+      updateCalculator(tool, { save: true });
+    });
+
+    swapBtn.addEventListener('click', function () {
+      swapBtn.classList.toggle('rotate-180');
+
+      const previousFrom = fromSel.value;
+      fromSel.value = toSel.value;
+      toSel.value = previousFrom;
+
+      toolStates[tool.id].from = fromSel.value;
+      toolStates[tool.id].to = toSel.value;
+
+      updateCalculator(tool, { save: true });
+      showToast('Swapped: ' + unitSymbol(tool, fromSel.value) + ' → ' + unitSymbol(tool, toSel.value));
+    });
+
+    signBtn.addEventListener('click', function () {
+      const value = input.value.trim();
+      if (!value) return;
+      if (value.charAt(0) === '-') {
+        input.value = value.slice(1);
+      } else if (NUMERIC_RE.test(value)) {
+        input.value = '-' + value;
+      } else {
+        return;
+      }
+      toolStates[tool.id].value = input.value;
+      updateCalculator(tool, { save: true });
+      input.focus();
+    });
+
+    copyBtn.addEventListener('click', async function () {
+      if (!currentCopy) return;
+      const success = await copyText(currentCopy);
+      showToast(success ? 'Result copied to clipboard' : 'Copy failed — please copy manually');
+    });
+
+    resetBtn.addEventListener('click', function () {
+      const defaults = defaultState(tool);
+      input.value = defaults.value;
+      fromSel.value = defaults.from;
+      toSel.value = defaults.to;
+      toolStates[tool.id] = defaults;
+      updateCalculator(tool, { save: false });
+      input.focus();
+      showToast('Calculator reset');
+    });
+
+    viewTool.querySelectorAll('[data-preset-from]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const from = btn.getAttribute('data-preset-from');
+        const to = btn.getAttribute('data-preset-to');
+        if (!from || !to) return;
+        fromSel.value = from;
+        toSel.value = to;
+        toolStates[tool.id].from = from;
+        toolStates[tool.id].to = to;
+        updateCalculator(tool, { save: true });
+        const calculator = document.getElementById('calculator');
+        if (calculator) calculator.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+
+    updateCalculator(tool, { save: false });
+  }
+
+  function updateCalculator(tool, opts) {
+    const options = opts || {};
+    const input = document.getElementById('input-value');
+    const fromSel = document.getElementById('unit-from');
+    const toSel = document.getElementById('unit-to');
+    if (!input || !fromSel || !toSel) return;
+
+    const fromUnit = tool.units.find(function (u) { return u.id === fromSel.value; });
+    const toUnit = tool.units.find(function (u) { return u.id === toSel.value; });
+    if (!fromUnit || !toUnit) return;
+
+    const numberEl = document.getElementById('result-number');
+    const unitEl = document.getElementById('result-unit');
+    const equationEl = document.getElementById('result-equation');
+    const errorEl = document.getElementById('conversion-error');
+    const copyBtn = document.getElementById('copy-btn');
+    if (!numberEl || !unitEl || !equationEl || !errorEl) return;
+
+    const result = computeConversion(tool, input.value, fromUnit.id, toUnit.id);
+
+    if (!result.ok) {
+      numberEl.textContent = '—';
+      unitEl.textContent = '';
+      errorEl.textContent = result.message || '';
+      errorEl.hidden = !result.message;
+      input.setAttribute('aria-invalid', result.message ? 'true' : 'false');
+      equationEl.textContent = result.empty ? 'Enter a value to convert.' : '';
+      currentCopy = null;
+      if (copyBtn) copyBtn.disabled = true;
+      if (recentTimer) { clearTimeout(recentTimer); recentTimer = null; pendingRecent = null; }
+    } else {
+      const formatted = formatNumber(result.value);
+      numberEl.textContent = formatted;
+      unitEl.textContent = toUnit.symbol;
+      errorEl.textContent = '';
+      errorEl.hidden = true;
+      input.setAttribute('aria-invalid', 'false');
+      equationEl.textContent = formatNumber(result.input) + ' ' + fromUnit.symbol + ' = ' + formatted + ' ' + toUnit.symbol;
+      currentCopy = formatPlain(result.value) + ' ' + toUnit.symbol;
+      if (copyBtn) copyBtn.disabled = false;
+      if (options.save) {
+        scheduleRecentSave({
+          toolId: tool.id,
+          from: fromUnit.id,
+          to: toUnit.id,
+          input: result.input,
+          output: result.value
+        });
+      }
+    }
+
+    updateReferenceTable(tool, fromUnit.id);
+  }
+
+  function updateReferenceTable(tool, fromId) {
+    const tbody = document.getElementById('ref-tbody');
+    const caption = document.getElementById('ref-caption');
+    if (!tbody) return;
+    const fromUnit = tool.units.find(function (u) { return u.id === fromId; });
+    if (!fromUnit) return;
+
+    if (caption) caption.textContent = '1 ' + fromUnit.symbol + ' converted to other units';
+
+    tbody.innerHTML = tool.units.map(function (unit) {
+      let value = '—';
+      if (unit.id === fromId) {
+        value = '1';
+      } else {
+        const result = computeConversion(tool, 1, fromId, unit.id);
+        if (result.ok) value = formatNumber(result.value);
+      }
+      return '<tr class="border-t border-slate-100' + (unit.id === fromId ? ' bg-brand-50/40' : '') + '">' +
+        '<th scope="row" class="whitespace-nowrap px-4 py-2.5 text-left font-medium text-slate-700">' + escapeHtml(unit.name) + '</th>' +
+        '<td class="whitespace-nowrap px-4 py-2.5 text-slate-500">' + escapeHtml(unit.symbol) + '</td>' +
+        '<td class="whitespace-nowrap px-4 py-2.5 text-left text-slate-700 tabular-nums">' + value + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  /* ============================================================
+     ROUTING
+     ============================================================ */
+  function parseRoute() {
+    const hash = window.location.hash || '';
+    const raw = hash.charAt(0) === '#' ? hash.slice(1) : hash;
+    const parts = raw.split('?');
+    const pathRaw = parts[0] || '';
+    const queryRaw = parts[1] || '';
+    const path = pathRaw.replace(/^\/+/, '').replace(/\/+$/, '');
+    const segments = path ? path.split('/') : [];
+    const params = new URLSearchParams(queryRaw);
+
+    if (segments[0] === 'tool' && segments[1]) {
+      return { name: 'tool', toolId: segments[1], params: params };
+    }
+    if (segments[0] === 'favorites') {
+      return { name: 'favorites', params: params };
+    }
+    if (segments[0] === 'recents') {
+      return { name: 'recents', params: params };
+    }
+    return { name: 'home', params: params };
+  }
+
+  function navigateHomeAndScroll() {
+    if (currentRoute.name === 'home') {
+      const tools = document.getElementById('tools');
+      if (tools) tools.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    pendingScroll = 'tools';
+    if (window.location.hash === '#/' || window.location.hash === '#' || window.location.hash === '') {
+      handleRoute();
+    } else {
+      window.location.hash = '#/';
+    }
+  }
+
+  function handleRoute() {
+    const route = parseRoute();
+    currentRoute = route;
+
+    renderHeader(route);
+
+    if (route.name === 'tool') {
+      renderToolView(route.toolId, route.params);
+    } else if (route.name === 'favorites') {
+      renderFavoritesView();
+    } else if (route.name === 'recents') {
+      renderRecentsView();
+    } else {
+      renderHomeView(route.params);
+    }
+
+    if (route.name === 'tool' && TOOLS[route.toolId]) {
+      document.title = TOOLS[route.toolId].name + ' · UnitFlow';
+    } else if (route.name === 'favorites') {
+      document.title = 'Favorites · UnitFlow';
+    } else if (route.name === 'recents') {
+      document.title = 'Recent conversions · UnitFlow';
+    } else {
+      document.title = 'UnitFlow — Every conversion. One simple place.';
+    }
+
+    if (pendingScroll) {
+      const target = document.getElementById(pendingScroll);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      pendingScroll = null;
+    } else if (!firstRender) {
+      window.scrollTo(0, 0);
+    }
+
+    if (!firstRender) {
+      const activeView = route.name === 'tool' ? viewTool
+        : route.name === 'favorites' ? viewFavorites
+        : route.name === 'recents' ? viewRecents
+        : viewHome;
+      const heading = activeView.querySelector('h1');
+      if (heading) heading.focus({ preventScroll: true });
+    }
+
+    firstRender = false;
+  }
+
+
+  /* ============================================================
+     GLOBAL EVENT DELEGATION
+     ============================================================ */
+
+  // Single helper so open/close logic never drifts from renderHeader()
+function closeMobileMenu(menu, toggle) {
+  if (!menu) return;
+
+  menu.classList.remove(
+    'max-h-96',
+    'opacity-100',
+    'translate-y-0'
+  );
+
+  menu.classList.add(
+    'max-h-0',
+    'opacity-0',
+    '-translate-y-2'
+  );
+
+  menu.setAttribute('aria-hidden', 'true');
+  menu.setAttribute('inert', '');
+
+  if (toggle) {
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', 'Open navigation menu');
+
+    toggle.innerHTML =
+      '<span class="sr-only">Toggle navigation menu</span>' +
+      icon('menu', 'h-5 w-5');
+  }
+}
+
+  document.addEventListener('click', function (event) {
+    // Mobile hamburger menu toggle
+const menuToggle = event.target.closest('#menu-toggle');
+
+if (menuToggle) {
+  event.preventDefault();
+
+  const menu = document.getElementById('mobile-menu');
+
+  if (!menu) return;
+
+  const isOpen =
+    menuToggle.getAttribute('aria-expanded') === 'true';
+
+  if (isOpen) {
+    closeMobileMenu(menu, menuToggle);
+  } else {
+    menu.classList.remove(
+      'max-h-0',
+      'opacity-0',
+      '-translate-y-2'
+    );
+
+    menu.classList.add(
+      'max-h-96',
+      'opacity-100',
+      'translate-y-0'
+    );
+
+    menu.setAttribute('aria-hidden', 'false');
+    menu.removeAttribute('inert');
+
+    menuToggle.setAttribute('aria-expanded', 'true');
+    menuToggle.setAttribute('aria-label', 'Close navigation menu');
+
+    menuToggle.innerHTML =
+      '<span class="sr-only">Toggle navigation menu</span>' +
+      icon('x', 'h-5 w-5');
+  }
+
+  return;
+}
+const scrollTrigger = event.target.closest('[data-scroll="tools"]');
+
+if (scrollTrigger) {
+  event.preventDefault();
+
+  const menu = document.getElementById('mobile-menu');
+  const toggle = document.getElementById('menu-toggle');
+
+  if (menu && toggle) {
+    closeMobileMenu(menu, toggle);
+  }
+
+  navigateHomeAndScroll();
+  return;
+}
+
+    const favoriteBtn = event.target.closest('[data-fav-id]');
+    if (favoriteBtn) {
+      event.preventDefault();
+      toggleFavorite(favoriteBtn.getAttribute('data-fav-id'));
+      return;
+    }
+
+    const removeBtn = event.target.closest('[data-remove-recent]');
+    if (removeBtn) {
+      event.preventDefault();
+      removeRecent(removeBtn.getAttribute('data-remove-recent'));
+      return;
+    }
+
+    // Close the mobile menu when a click lands outside both menu and toggle.
+    const menu = document.getElementById('mobile-menu');
+    const toggle = document.getElementById('menu-toggle');
+    if (menu && toggle && toggle.getAttribute('aria-expanded') === 'true') {
+      if (!menu.contains(event.target) && !toggle.contains(event.target)) {
+        closeMobileMenu(menu, toggle);
+      }
+    }
+
+    const link = event.target.closest('a[href^="#/"]');
+    if (link && !link.hasAttribute('data-scroll')) {
+      const href = link.getAttribute('href');
+      if (href === window.location.hash) {
+        event.preventDefault();
+        handleRoute();
+      }
+    }
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Escape') return;
+
+    // If a confirmation modal is open, it takes priority
+    if (activeModal) {
+      event.preventDefault();
+      closeModal();
+      return;
+    }
+
+    const menu = document.getElementById('mobile-menu');
+    const toggle = document.getElementById('menu-toggle');
+    if (menu && toggle && toggle.getAttribute('aria-expanded') === 'true') {
+      closeMobileMenu(menu, toggle);
+      toggle.focus();
+    }
+  });
+
+  window.addEventListener('hashchange', handleRoute);
+
+  /* ============================================================
+     INIT
+     ============================================================ */
+  renderFooter();
+  handleRoute();
+})();
+</script>
+</body>
+</html>
